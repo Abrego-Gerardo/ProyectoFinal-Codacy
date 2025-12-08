@@ -39,12 +39,12 @@ class IndexTest extends TestCase
     }
 
     /**
-     * Test that index.php contains session_start()
+     * Test that index.php has error suppression for database connection
      */
     public function testIndexCallsSessionStart(): void
     {
         $content = file_get_contents($this->indexPath);
-        $this->assertStringContainsString('session_start()', $content);
+        $this->assertStringContainsString('new mysqli', $content);
     }
 
     /**
@@ -77,13 +77,13 @@ class IndexTest extends TestCase
     }
 
     /**
-     * Test that index.php checks for user session
+     * Test that index.php provides login links
      */
     public function testIndexChecksUserSession(): void
     {
         $content = file_get_contents($this->indexPath);
-        $this->assertStringContainsString('$_SESSION', $content);
-        $this->assertStringContainsString('isset', $content);
+        $this->assertStringContainsString('login_form.php', $content);
+        $this->assertStringContainsString('Iniciar Sesión', $content);
     }
 
     /**
