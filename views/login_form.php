@@ -1,77 +1,102 @@
 <?php
+declare(strict_types=1);
 session_start();
 
-// Redirect if already logged in
-if (isset($_SESSION['user'])) {
+/* --------------------------------------------------
+   Redirect if already logged in
+-------------------------------------------------- */
+if (isset($_SESSION['user_id'])) {
     header("Location: ../index.php");
-    exit();
+    exit;
 }
 
-// Initialize variables
+/* --------------------------------------------------
+   Initialize
+-------------------------------------------------- */
 $error_message = '';
 
-// Generate CSRF token if not exists
+/* --------------------------------------------------
+   CSRF Token
+-------------------------------------------------- */
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// Handle login
+/* --------------------------------------------------
+   Handle Login
+-------------------------------------------------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF token
-    if (empty($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $error_message = "Error de seguridad: Token inválido";
+
+    /* ---- CSRF validation ---- */
+    if (
+        empty($_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ) {
+        $error_message = "Error de seguridad. Intenta nuevamente.";
     } else {
-        // Validate and sanitize input
+
+        /* ---- Input validation ---- */
         $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
         $password = $_POST['password'] ?? '';
 
-        if ($email === false || empty($password)) {
-            $error_message = "Por favor proporciona un correo y contraseña válidos";
+        if (!$email || $password === '') {
+            $error_message = "Correo o contraseña inválidos.";
         } else {
-            // Get database connection
+
+            /* ---- Database connection ---- */
             $db_host = 'localhost';
             $db_user = 'root';
             $db_pass = '';
             $db_name = 'agencia_db';
 
             $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
-            
+
             if ($conn->connect_error) {
-                $error_message = "Error de conexión a la base de datos";
+                $error_message = "Error interno. Intenta más tarde.";
             } else {
-                // Use prepared statement to prevent SQL injection
-                $sql = "SELECT id, username, password, usertype FROM users WHERE email = ?";
+
+                /* ---- Prepared statement ---- */
+                $sql = "SELECT id, username, password, usertype 
+                        FROM users 
+                        WHERE email = ? 
+                        LIMIT 1";
+
                 $stmt = $conn->prepare($sql);
-                
-                if (!$stmt) {
-                    $error_message = "Error en la consulta de base de datos";
-                } else {
+
+                if ($stmt) {
                     $stmt->bind_param("s", $email);
-                    if (!$stmt->execute()) {
-                        $error_message = "Error al ejecutar la consulta";
-                    } else {
-                        $result = $stmt->get_result();
-                        $user = $result->fetch_assoc();
-                        
-                        if ($user && password_verify($password, $user["password"])) {
-                            // Login successful - set session variables
-                            $_SESSION["user"] = htmlspecialchars($user["username"], ENT_QUOTES, 'UTF-8');
-                            $_SESSION["usertype"] = htmlspecialchars($user["usertype"], ENT_QUOTES, 'UTF-8');
-                            $_SESSION["user_id"] = $user["id"];
-                            
-                            // Redirect based on user type
-                            if ($user["usertype"] === "admin") {
-                                header("Location: administracion.php");
-                            } else {
-                                header("Location: ../index.php");
-                            }
-                            exit();
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $user = $result->fetch_assoc();
+
+                    if ($user && password_verify($password, $user['password'])) {
+
+                        /* ---- Secure session handling ---- */
+                        session_regenerate_id(true);
+
+                        $_SESSION['user_id']  = (int)$user['id'];
+                        $_SESSION['user']     = $user['username']; // NO escaping here
+                        $_SESSION['usertype'] = $user['usertype'];
+
+                        unset($_SESSION['csrf_token']); // rotate token
+
+                        /* ---- Redirect ---- */
+                        if ($user['usertype'] === 'admin') {
+                            header("Location: administracion.php");
                         } else {
-                            $error_message = "El correo o contraseña fue incorrecto";
+                            header("Location: ../index.php");
                         }
+                        exit;
+
+                    } else {
+                        $error_message = "Correo o contraseña incorrectos.";
                     }
+
                     $stmt->close();
+                } else {
+                    $error_message = "Error interno. Intenta más tarde.";
                 }
+
                 $conn->close();
             }
         }
@@ -87,32 +112,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../public/assets/css/style.css">
 </head>
 <body>
-    <div class="login-container">
-        <h1>Gestión de Usuarios</h1>
-        
-        <?php if (!empty($error_message)): ?>
-            <div class="error-message" style="color: #d32f2f; padding: 10px; margin-bottom: 15px; border: 1px solid #d32f2f; border-radius: 4px;">
-                <?php echo htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8'); ?>
-            </div>
-        <?php endif; ?>
-        
-        <form action="login_form.php" method="post">
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
-            
-            <div class="form-group">
-                <input type="email" name="email" placeholder="Correo electrónico" required>
-            </div>
-            <div class="form-group">
-                <input type="password" name="password" placeholder="Contraseña" required>
-            </div>
-            <div class="form-group">
-                <button type="submit">Iniciar Sesión</button>
-            </div>
-        </form>
-        
-        <a href="register_form.php">Registrarse</a>
-        <a href="recover_password_form.php">¿No recuerdas tu contraseña? Recuperar Contraseña</a>
-        <a href="../index.php">Volver a Inicio</a>
-    </div>
+
+<div class="login-container">
+    <h1>Gestión de Usuarios</h1>
+
+    <?php if ($error_message): ?>
+        <div class="error-message">
+            <?= htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8') ?>
+        </div>
+    <?php endif; ?>
+
+    <form method="post" action="login_form.php">
+        <input type="hidden" name="csrf_token"
+               value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
+
+        <div class="form-group">
+            <input type="email" name="email" placeholder="Correo electrónico" required>
+        </div>
+
+        <div class="form-group">
+            <input type="password" name="password" placeholder="Contraseña" required>
+        </div>
+
+        <div class="form-group">
+            <button type="submit">Iniciar Sesión</button>
+        </div>
+    </form>
+
+    <a href="register_form.php">Registrarse</a>
+    <a href="recover_password_form.php">¿Olvidaste tu contraseña?</a>
+    <a href="../index.php">Volver a Inicio</a>
+</div>
+
 </body>
 </html>
