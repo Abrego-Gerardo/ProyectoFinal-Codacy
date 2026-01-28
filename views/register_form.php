@@ -41,12 +41,30 @@
                 }
 
 
-                require_once "database.php";
-                $sql = "SELECT * FROM users WHERE email = '$email'";
-                $resultado = mysqli_query($conn, $sql);
-                $rowCount = mysqli_num_rows($resultado);
-                if ($rowCount>0) {
-                    array_push($errors,"Este correo ya esta siendo utilizado");
+                // Database connection
+                $db_host = 'localhost';
+                $db_user = 'root';
+                $db_pass = '';
+                $db_name = 'agencia_db';
+                $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
+                if ($conn->connect_error) {
+                    array_push($errors,"Error en la conexión a la base de datos");
+                } else {
+                    // Use prepared statement to prevent SQL injection
+                    $sql = "SELECT id FROM users WHERE email = ?";
+                    $stmt = $conn->prepare($sql);
+                    if ($stmt) {
+                        $stmt->bind_param("s", $email);
+                        $stmt->execute();
+                        $resultado = $stmt->get_result();
+                        $rowCount = $resultado->num_rows;
+                        if ($rowCount > 0) {
+                            array_push($errors,"Este correo ya esta siendo utilizado");
+                        }
+                        $stmt->close();
+                    } else {
+                        array_push($errors,"Error en la consulta a la base de datos");
+                    }
                 }
 
 

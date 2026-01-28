@@ -2,18 +2,22 @@
 // Conexión a la base de datos
 $conn = new mysqli("localhost", "root", "", "agencia_db");
 if ($conn->connect_error) {
-    die("Conexión fallida: " . $conn->connect_error);
+    die("Conexión fallida: " . htmlspecialchars($conn->connect_error));
 }
 
-// Obtener detalles del viaje
-$id = $_GET['id'];
-$sql = "SELECT * FROM destinos WHERE id=$id";
-$result = $conn->query($sql);
-
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-} else {
+// Obtener detalles del viaje - Use prepared statement to prevent SQL injection
+$id = filter_var($_GET['id'] ?? 0, FILTER_VALIDATE_INT);
+if ($id === false || $id === 0) {
     $row = null;
+    $result = null;
+} else {
+    $sql = "SELECT * FROM destinos WHERE id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->num_rows > 0 ? $result->fetch_assoc() : null;
+    $stmt->close();
 }
 
 $conn->close();
@@ -53,15 +57,15 @@ $conn->close();
         <h1>Detalles del Viaje</h1>
         <?php if ($row): ?>
             <div class='detalle-viaje'>
-                <img src='../<?php echo $row["foto"]; ?>' alt='<?php echo $row["city"]; ?>'>
-                <h2><?php echo $row["city"] . ", " . $row["pais"]; ?></h2>
-                <p>Tipo de Destino: <?php echo $row["tipo_destino"]; ?></p>
-                <p>Precio Niño: $<?php echo $row["precio_nino"]; ?></p>
-                <p>Precio Adulto: $<?php echo $row["precio_adulto"]; ?></p>
-                <p>Precio Mayor: $<?php echo $row["precio_mayor"]; ?></p>
-                <p>Detalles: <?php echo isset($row["detalles"]) ? nl2br(htmlspecialchars($row["detalles"])) : "No hay detalles disponibles"; ?></p>
+                <img src='../<?php echo htmlspecialchars($row["foto"], ENT_QUOTES, 'UTF-8'); ?>' alt='<?php echo htmlspecialchars($row["city"], ENT_QUOTES, 'UTF-8'); ?>'>
+                <h2><?php echo htmlspecialchars($row["city"], ENT_QUOTES, 'UTF-8') . ", " . htmlspecialchars($row["pais"], ENT_QUOTES, 'UTF-8'); ?></h2>
+                <p>Tipo de Destino: <?php echo htmlspecialchars($row["tipo_destino"], ENT_QUOTES, 'UTF-8'); ?></p>
+                <p>Precio Niño: $<?php echo htmlspecialchars($row["precio_nino"], ENT_QUOTES, 'UTF-8'); ?></p>
+                <p>Precio Adulto: $<?php echo htmlspecialchars($row["precio_adulto"], ENT_QUOTES, 'UTF-8'); ?></p>
+                <p>Precio Mayor: $<?php echo htmlspecialchars($row["precio_mayor"], ENT_QUOTES, 'UTF-8'); ?></p>
+                <p>Detalles: <?php echo isset($row["detalles"]) ? nl2br(htmlspecialchars($row["detalles"], ENT_QUOTES, 'UTF-8')) : "No hay detalles disponibles"; ?></p>
                 <form action="procesar_reserva.php" method="post">
-                    <input type="hidden" name="id_viaje" value="<?php echo $row['id']; ?>">
+                    <input type="hidden" name="id_viaje" value="<?php echo htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit">Reservar</button>
                 </form>
             </div>

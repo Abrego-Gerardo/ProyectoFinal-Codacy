@@ -2,19 +2,30 @@
 // Conexión a la base de datos
 $conn = new mysqli("localhost", "root", "", "agencia_db");
 if ($conn->connect_error) {
-    die("Conexión fallida: " . $conn->connect_error);
+    die("Conexión fallida: " . htmlspecialchars($conn->connect_error));
 }
 
-// Obtener detalles del destino seleccionado
-$id_viaje = $_POST['id_viaje'];
-$sql = "SELECT * FROM destinos WHERE id = $id_viaje";
-$result = $conn->query($sql);
+// Obtener detalles del destino seleccionado - Use prepared statement to prevent SQL injection
+$id_viaje = filter_var($_POST['id_viaje'] ?? 0, FILTER_VALIDATE_INT);
+if ($id_viaje === false || $id_viaje === 0) {
+    die("Destino no encontrado.");
+}
+
+$sql = "SELECT * FROM destinos WHERE id = ?";
+$stmt = $conn->prepare($sql);
+if (!$stmt) {
+    die("Error en la consulta: " . htmlspecialchars($conn->error));
+}
+$stmt->bind_param("i", $id_viaje);
+$stmt->execute();
+$result = $stmt->get_result();
 
 if ($result->num_rows > 0) {
     $destino = $result->fetch_assoc();
 } else {
     die("Destino no encontrado.");
 }
+$stmt->close();
 ?>
 
 <!DOCTYPE html>
@@ -91,39 +102,39 @@ if ($result->num_rows > 0) {
     <div class="main-content">
         <h1>Procesar Reserva</h1>
         <div class="detalle-reserva">
-            <h2><?php echo $destino["city"] . ", " . $destino["pais"]; ?></h2>
-            <p>Precio Niño: $<?php echo $destino["precio_nino"]; ?></p>
-            <p>Precio Adulto: $<?php echo $destino["precio_adulto"]; ?></p>
-            <p>Precio Mayor: $<?php echo $destino["precio_mayor"]; ?></p>
+            <h2><?php echo htmlspecialchars($destino["city"], ENT_QUOTES, 'UTF-8') . ", " . htmlspecialchars($destino["pais"], ENT_QUOTES, 'UTF-8'); ?></h2>
+            <p>Precio Niño: $<?php echo htmlspecialchars($destino["precio_nino"], ENT_QUOTES, 'UTF-8'); ?></p>
+            <p>Precio Adulto: $<?php echo htmlspecialchars($destino["precio_adulto"], ENT_QUOTES, 'UTF-8'); ?></p>
+            <p>Precio Mayor: $<?php echo htmlspecialchars($destino["precio_mayor"], ENT_QUOTES, 'UTF-8'); ?></p>
 
             <!-- Precio total dinámico -->
             <p class="precio-final">Precio Total: $<span id="precio_total">0</span></p>
 
             <form action="confirmar_reserva.php" method="post">
-                <input type="hidden" name="id_viaje" value="<?php echo $destino['id']; ?>">
+                <input type="hidden" name="id_viaje" value="<?php echo htmlspecialchars($destino['id'], ENT_QUOTES, 'UTF-8'); ?>">
 
                 <!-- Contador para niños -->
                 <label for="cantidad_ninos">Cantidad de Niños:</label>
                 <div class="contador">
-                    <button type="button" onclick="actualizarCantidad('cantidad_ninos', -1, <?php echo $destino['precio_nino']; ?>)">-</button>
+                    <button type="button" onclick="actualizarCantidad('cantidad_ninos', -1, <?php echo htmlspecialchars($destino['precio_nino'], ENT_QUOTES, 'UTF-8'); ?>)">-</button>
                     <input type="number" id="cantidad_ninos" name="cantidad_ninos" value="0" min="0" readonly>
-                    <button type="button" onclick="actualizarCantidad('cantidad_ninos', 1, <?php echo $destino['precio_nino']; ?>)">+</button>
+                    <button type="button" onclick="actualizarCantidad('cantidad_ninos', 1, <?php echo htmlspecialchars($destino['precio_nino'], ENT_QUOTES, 'UTF-8'); ?>)">+</button>
                 </div>
 
                 <!-- Contador para adultos -->
                 <label for="cantidad_adultos">Cantidad de Adultos:</label>
                 <div class="contador">
-                    <button type="button" onclick="actualizarCantidad('cantidad_adultos', -1, <?php echo $destino['precio_adulto']; ?>)">-</button>
+                    <button type="button" onclick="actualizarCantidad('cantidad_adultos', -1, <?php echo htmlspecialchars($destino['precio_adulto'], ENT_QUOTES, 'UTF-8'); ?>)">-</button>
                     <input type="number" id="cantidad_adultos" name="cantidad_adultos" value="0" min="0" readonly>
-                    <button type="button" onclick="actualizarCantidad('cantidad_adultos', 1, <?php echo $destino['precio_adulto']; ?>)">+</button>
+                    <button type="button" onclick="actualizarCantidad('cantidad_adultos', 1, <?php echo htmlspecialchars($destino['precio_adulto'], ENT_QUOTES, 'UTF-8'); ?>)">+</button>
                 </div>
 
                 <!-- Contador para mayores -->
                 <label for="cantidad_mayores">Cantidad de Mayores:</label>
                 <div class="contador">
-                    <button type="button" onclick="actualizarCantidad('cantidad_mayores', -1, <?php echo $destino['precio_mayor']; ?>)">-</button>
+                    <button type="button" onclick="actualizarCantidad('cantidad_mayores', -1, <?php echo htmlspecialchars($destino['precio_mayor'], ENT_QUOTES, 'UTF-8'); ?>)">-</button>
                     <input type="number" id="cantidad_mayores" name="cantidad_mayores" value="0" min="0" readonly>
-                    <button type="button" onclick="actualizarCantidad('cantidad_mayores', 1, <?php echo $destino['precio_mayor']; ?>)">+</button>
+                    <button type="button" onclick="actualizarCantidad('cantidad_mayores', 1, <?php echo htmlspecialchars($destino['precio_mayor'], ENT_QUOTES, 'UTF-8'); ?>)">+</button>
                 </div>
 
                 <button type="submit">Confirmar Reserva</button>
